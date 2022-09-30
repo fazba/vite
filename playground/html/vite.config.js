@@ -42,22 +42,22 @@ module.exports = {
             throw new Error('pre transform applied at wrong time!')
           }
           const head = `
-  <head lang="en">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-  </head>`
+            <head lang="en">
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>{{ title }}</title>
+            </head>`
           return `<!DOCTYPE html>
-<html lang="en">${filename.includes('noHead') ? '' : head}
-${
-  filename.includes('noBody')
-    ? html
-    : `<body>
-  ${html}
-</body>`
-}
-</html>
-  `
+          <html lang="en">${filename.includes('noHead') ? '' : head}
+          ${
+            filename.includes('noBody')
+              ? html
+              : `<body>
+            ${html}
+          </body>`
+          }
+          </html>
+            `
         }
       }
     },
