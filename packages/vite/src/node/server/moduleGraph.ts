@@ -20,11 +20,12 @@ export class ModuleNode {
    */
   id: string | null = null
   file: string | null = null
-  type: 'js' | 'css'
+  type: 'js' | 'css' // 节点类型，脚本或者样式
   info?: ModuleInfo
   meta?: Record<string, any>
-  importers = new Set<ModuleNode>()
+  importers = new Set<ModuleNode>() // 引用者
   importedModules = new Set<ModuleNode>()
+  /**当前模块热更的依赖 */
   acceptedHmrDeps = new Set<ModuleNode>()
   acceptedHmrExports: Set<string> | null = null
   importedBindings: Map<string, Set<string>> | null = null
@@ -33,6 +34,7 @@ export class ModuleNode {
   ssrTransformResult: TransformResult | null = null
   ssrModule: Record<string, any> | null = null
   ssrError: Error | null = null
+  /**最新热更时间戳 */
   lastHMRTimestamp = 0
   lastInvalidationTimestamp = 0
 
@@ -178,7 +180,7 @@ export class ModuleGraph {
     mod.importedBindings = importedBindings
     return noLongerImported
   }
-
+  /**根据 url 生成模块 */
   async ensureEntryFromUrl(
     rawUrl: string,
     ssr?: boolean,

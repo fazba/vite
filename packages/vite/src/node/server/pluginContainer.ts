@@ -459,7 +459,7 @@ export async function createPluginContainer(
     }
     return err
   }
-
+  /**转换上下文有专属 vite 的 sourcemap 处理 */
   class TransformContext extends Context {
     filename: string
     originalCode: string
@@ -532,6 +532,7 @@ export async function createPluginContainer(
   let closed = false
 
   const container: PluginContainer = {
+    /**服务启动时读取配置的钩子 */
     options: await (async () => {
       let options = rollupOptions
       for (const optionsHook of getSortedPluginHooks('options')) {
@@ -550,7 +551,7 @@ export async function createPluginContainer(
     })(),
 
     getModuleInfo,
-
+    /**开始构建时的钩子 */
     async buildStart() {
       await hookParallel(
         'buildStart',
@@ -558,7 +559,7 @@ export async function createPluginContainer(
         () => [container.options as NormalizedInputOptions]
       )
     },
-
+    /**自定义解析器 */
     async resolveId(rawId, importer = join(root, 'index.html'), options) {
       const skip = options?.skip
       const ssr = options?.ssr
@@ -628,7 +629,7 @@ export async function createPluginContainer(
         return null
       }
     },
-
+    /**自定义加载器钩子 */
     async load(id, options) {
       const ssr = options?.ssr
       const ctx = new Context()
@@ -648,7 +649,7 @@ export async function createPluginContainer(
       }
       return null
     },
-
+    /**转换器钩子 */
     async transform(code, id, options) {
       const inMap = options?.inMap
       const ssr = options?.ssr
@@ -698,7 +699,7 @@ export async function createPluginContainer(
         map: ctx._getCombinedSourcemap()
       }
     },
-
+    /**服务关闭钩子 */
     async close() {
       if (closed) return
       const ctx = new Context()

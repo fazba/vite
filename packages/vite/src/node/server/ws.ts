@@ -93,7 +93,7 @@ export function createWebSocketServer(
   const wsServer = hmrServer || (portsAreCompatible && server)
   const customListeners = new Map<string, Set<WebSocketCustomListener<any>>>()
   const clientsMap = new WeakMap<WebSocketRaw, WebSocketClient>()
-
+  // 指定 ws 服务地址
   if (wsServer) {
     wss = new WebSocketServerRaw({ noServer: true })
     wsServer.on('upgrade', (req, socket, head) => {

@@ -305,7 +305,9 @@ export interface ResolvedServerUrls {
 export async function createServer(
   inlineConfig: InlineConfig = {}
 ): Promise<ViteDevServer> {
+  // 从 CLI + 默认参数中获取 development 或 server 的 config
   const config = await resolveConfig(inlineConfig, 'serve', 'development')
+  /**根目录、开发服务器的配置*/
   const { root, server: serverConfig } = config
   const httpsOptions = await resolveHttpsConfig(config.server.https)
   const { middlewareMode } = serverConfig
@@ -315,7 +317,7 @@ export async function createServer(
     ...serverConfig.watch
   })
 
-  const middlewares = connect() as Connect.Server
+  const middlewares = connect() as Connect.Server // (通过 connect 初始化中间接，这也是 express 的中间件依赖包)
   const httpServer = middlewareMode
     ? null
     : await resolveHttpServer(serverConfig, middlewares, httpsOptions)
@@ -326,6 +328,7 @@ export async function createServer(
   }
 
   const watcher = chokidar.watch(
+    // (通过 chokidar 监控文件变化)
     path.resolve(root),
     resolvedWatchOptions
   ) as FSWatcher
@@ -334,11 +337,14 @@ export async function createServer(
     container.resolveId(url, undefined, { ssr })
   )
 
+  /** 插件容器 */
   const container = await createPluginContainer(config, moduleGraph, watcher)
+  /** 关闭服务后的回调函数 */
   const closeHttpServer = createServerCloseFn(httpServer)
-
+  /** 退出进程处理函数 */
   let exitProcess: () => void
 
+  // 用字面量定义 server 实例，上面囊括了 vite 开发服务器的全部信息，在我们开发插件时通过 configureServer 钩子能获取到 server 信息并可以在 middlewares 上扩展中间件。
   const server: ViteDevServer = {
     config,
     middlewares,
@@ -356,6 +362,7 @@ export async function createServer(
     ) {
       return ssrTransform(code, inMap, url, originalCode, server.config)
     },
+    /**加载并转换具体的 url 指向的文件 */
     transformRequest(url, options) {
       return transformRequest(url, server, options)
     },
@@ -373,6 +380,7 @@ export async function createServer(
         opts?.fixStacktrace
       )
     },
+    /**ssr 堆栈信息 */
     ssrFixStacktrace(e) {
       if (e.stack) {
         const stacktrace = ssrRewriteStacktrace(e.stack, moduleGraph)
@@ -382,6 +390,7 @@ export async function createServer(
     ssrRewriteStacktrace(stack: string) {
       return ssrRewriteStacktrace(stack, moduleGraph)
     },
+    /**启动服务 */
     async listen(port?: number, isRestart?: boolean) {
       await startServer(server, port, isRestart)
       if (httpServer) {
@@ -393,6 +402,7 @@ export async function createServer(
       }
       return server
     },
+    /**关闭服务 */
     async close() {
       if (!middlewareMode) {
         process.off('SIGTERM', exitProcess)
@@ -425,6 +435,7 @@ export async function createServer(
         )
       }
     },
+    /**重启服务 */
     async restart(forceOptimize?: boolean) {
       if (!server._restartPromise) {
         server._forceOptimizeOnRestart = !!forceOptimize
@@ -443,7 +454,7 @@ export async function createServer(
     _pendingRequests: new Map(),
     _fsDenyGlob: picomatch(config.server.fs.deny, { matchBase: true })
   }
-
+  /** 插件的 transformIndexHtml 钩子在这里就执行啦，用于转换 index.html */
   server.transformIndexHtml = createDevHtmlTransformFn(server)
 
   if (!middlewareMode) {
@@ -510,13 +521,13 @@ export async function createServer(
     })
   }
 
-  // apply server configuration hooks from plugins
+  // apply server configuration hooks from plugins  (收集插件中的 configureServer 钩子)
   const postHooks: ((() => void) | void)[] = []
   for (const hook of config.getSortedPluginHooks('configureServer')) {
     postHooks.push(await hook(server))
   }
 
-  // Internal middlewares ------------------------------------------------------
+  // Internal middlewares (一系列内部的中间件)------------------------------------------------------
 
   // request timer
   if (process.env.DEBUG) {
@@ -598,16 +609,16 @@ export async function createServer(
       await container.buildStart({})
       if (isDepsOptimizerEnabled(config, false)) {
         // non-ssr
-        await initDepsOptimizer(config, server)
+        await initDepsOptimizer(config, server) //预构建
       }
       initingServer = undefined
       serverInited = true
     })()
     return initingServer
   }
-
+  // 不是以中间件模式创建的 Vite 服务，是 http 服务
   if (!middlewareMode && httpServer) {
-    // overwrite listen to init optimizer before server start
+    // overwrite listen to init optimizer before server start (重写 listen 函数为了在服务启动之前执行预构建)
     const listen = httpServer.listen.bind(httpServer)
     httpServer.listen = (async (port: number, ...args: any[]) => {
       try {

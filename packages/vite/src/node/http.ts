@@ -123,6 +123,7 @@ export async function resolveHttpServer(
 export async function resolveHttpsConfig(
   https: boolean | HttpsServerOptions | undefined
 ): Promise<HttpsServerOptions | undefined> {
+  // server.https 是 false 或者 undefined，不开启 https
   if (!https) return undefined
 
   const httpsOption = isObject(https) ? { ...https } : {}

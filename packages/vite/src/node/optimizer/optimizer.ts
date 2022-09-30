@@ -88,7 +88,7 @@ export async function initDevSsrDepsOptimizer(
   })()
   return await creatingDevSsrOptimizer
 }
-
+/**预构建 */
 async function createDepsOptimizer(
   config: ResolvedConfig,
   server?: ViteDevServer
