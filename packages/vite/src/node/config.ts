@@ -397,7 +397,7 @@ export async function resolveConfig(
       config.logLevel
     )
     if (loadResult) {
-      config = mergeConfig(loadResult.config, config)
+      config = mergeConfig(loadResult.config, config) //可以看出 CLI 的参数优先级大于配置文件
       configFile = loadResult.path
       configFileDependencies = loadResult.dependencies
     }
@@ -873,7 +873,7 @@ export async function loadConfigFromFile(
   config: UserConfig
   dependencies: string[]
 } | null> {
-  const start = performance.now()
+  const start = performance.now() // node 上常用的逻辑执行时间
   const getTime = () => `${(performance.now() - start).toFixed(2)}ms`
 
   let resolvedPath: string | undefined
