@@ -390,6 +390,7 @@ export async function resolveConfig(
 
   let { configFile } = config
   if (configFile !== false) {
+    //获取自定义配置文件或vite.config里的配置
     const loadResult = await loadConfigFromFile(
       configEnv,
       configFile,
@@ -912,6 +913,7 @@ export async function loadConfigFromFile(
   }
 
   try {
+    // 将配置文件用 esbuild 进行构建并输出 cjs 包
     const bundled = await bundleConfigFile(resolvedPath, isESM)
     const userConfig = await loadConfigFromBundledFile(
       resolvedPath,
@@ -919,7 +921,7 @@ export async function loadConfigFromFile(
       isESM
     )
     debug(`bundled config file loaded in ${getTime()}`)
-
+    // 解析后如果是一个函数，可以看到执行结果返回一个 promise。这也是为什么配置文件能够支持情景配置和异步配置的原因。
     const config = await (typeof userConfig === 'function'
       ? userConfig(configEnv)
       : userConfig)
@@ -948,16 +950,16 @@ async function bundleConfigFile(
   const filenameVarName = '__vite_injected_original_filename'
   const importMetaUrlVarName = '__vite_injected_original_import_meta_url'
   const result = await build({
-    absWorkingDir: process.cwd(),
-    entryPoints: [fileName],
-    outfile: 'out.js',
-    write: false,
+    absWorkingDir: process.cwd(), //工作绝对路径
+    entryPoints: [fileName], //入口
+    outfile: 'out.js', //输出文件
+    write: false, //不写入文件系统
     target: ['node14.18', 'node16'],
     platform: 'node',
     bundle: true,
     format: isESM ? 'esm' : 'cjs',
     sourcemap: 'inline',
-    metafile: true,
+    metafile: true, //输出构建信息
     define: {
       __dirname: dirnameVarName,
       __filename: filenameVarName,
@@ -1067,17 +1069,20 @@ async function loadConfigFromBundledFile(
     const extension = path.extname(fileName)
     const realFileName = fs.realpathSync(fileName)
     const loaderExt = extension in _require.extensions ? extension : '.js'
-    const defaultLoader = _require.extensions[loaderExt]!
+    const defaultLoader = _require.extensions[loaderExt]! // 默认的 .ts 解析器，node 默认不支持 ts，所以是 undefined
+    // 扩展 cjs 的 require 支持的类型，使 node 支持 ts 的解析
     _require.extensions[loaderExt] = (module: NodeModule, filename: string) => {
       if (filename === realFileName) {
+        // 调用 module._compile 方法对代码进行编译操作
         ;(module as NodeModuleWithCompile)._compile(bundledCode, filename)
       } else {
         defaultLoader(module, filename)
       }
     }
-    // clear cache in case of server restart
+    // clear cache in case of server restart （如果是重启服务的情况，这里有缓存结果，所以需要清除掉文件的缓存）
     delete _require.cache[_require.resolve(fileName)]
     const raw = _require(fileName)
+    // 重置 .ts 扩展定义
     _require.extensions[loaderExt] = defaultLoader
     return raw.__esModule ? raw.default : raw
   }
