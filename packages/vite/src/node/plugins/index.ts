@@ -34,11 +34,24 @@ export async function resolvePlugins(
 ): Promise<Plugin[]> {
   const isBuild = config.command === 'build'
   const isWatch = isBuild && !!config.build.watch
+  // 构建模式下添加 build 配置
   const buildPlugins = isBuild
     ? (await import('../build')).resolveBuildPlugins(config)
     : { pre: [], post: [] }
   const { modulePreload } = config.build
-
+  /**
+   * 将用户定义的插件安插到整个插件数组中，也就控制了插件的执行顺序：
+    Alias
+    带有 enforce: 'pre' 的用户插件
+    Vite 核心插件
+    没有 enforce 值的用户插件
+    Vite 构建用的插件
+    带有 enforce: 'post' 的用户插件
+    Vite 后置构建插件（最小化，manifest，报告）
+   */
+  /**
+   * 完整的插件列表
+   */
   return [
     isWatch ? ensureWatchPlugin() : null,
     isBuild ? metadataPlugin() : null,

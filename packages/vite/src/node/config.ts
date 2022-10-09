@@ -417,6 +417,7 @@ export async function resolveConfig(
   // Some plugins that aren't intended to work in the bundling of workers (doing post-processing at build time for example).
   // And Plugins may also have cached that could be corrupted by being used in these extra rollup calls.
   // So we need to separate the worker plugin from the plugin that vite needs to run.
+  // 获取插件列表，拍平，并过滤真值的插件
   const rawWorkerUserPlugins = (
     (await asyncFlatten(config.worker?.plugins || [])) as Plugin[]
   ).filter((p) => {
@@ -435,20 +436,25 @@ export async function resolveConfig(
   const rawUserPlugins = (
     (await asyncFlatten(config.plugins || [])) as Plugin[]
   ).filter((p) => {
+    // 假值的插件会被忽略
     if (!p) {
       return false
+      // 没有 apply 属性，说明是对象，直接返回 true
     } else if (!p.apply) {
       return true
+      // apply 是一个函数，则传入configEnv执行插件函数，最后根据返回值结果去决定是否使用
     } else if (typeof p.apply === 'function') {
       return p.apply({ ...config, mode }, configEnv)
+      //  apply 可以定义一个属性值，比如 { apply: 'build' }，则只在构建下使用该插件
     } else {
       return p.apply === command
     }
   })
+  // 根据 p.enforce 给插件排序
   const [prePlugins, normalPlugins, postPlugins] =
     sortUserPlugins(rawUserPlugins)
 
-  // run config hooks
+  // run config hooks  (依次执行插件的config钩子)
   const userPlugins = [...prePlugins, ...normalPlugins, ...postPlugins]
   config = await runConfigHook(config, userPlugins, configEnv)
 
@@ -625,16 +631,24 @@ export async function resolveConfig(
   }
 
   const resolvedConfig: ResolvedConfig = {
+    /**配置文件 */
     configFile: configFile ? normalizePath(configFile) : undefined,
+    /**配置文件中的依赖 */
     configFileDependencies: configFileDependencies.map((name) =>
       normalizePath(path.resolve(name))
     ),
+    /**CLI传入的配置 */
     inlineConfig,
+    /**启动的根目录 */
     root: resolvedRoot,
+    /**公共基础路径 */
     base: resolvedBase,
+    /**文件路径解析相关 */
     resolve: resolveOptions,
+    /**静态资源文件夹 */
     publicDir: resolvedPublicDir,
     cacheDir,
+    /**当前启动命令 */
     command,
     mode,
     ssr,
@@ -642,9 +656,13 @@ export async function resolveConfig(
     mainConfig: null,
     isProduction,
     plugins: userPlugins,
+    /**服务器 */
     server,
+    /**构建的配置 */
     build: resolvedBuildOptions,
+    /**预览选项 */
     preview: resolvePreviewOptions(config.preview, server),
+    /**环境变量 */
     env: {
       ...userEnv,
       BASE_URL,
@@ -652,12 +670,15 @@ export async function resolveConfig(
       DEV: !isProduction,
       PROD: isProduction
     },
+    /**额外的静态资源 */
     assetsInclude(file: string) {
       return DEFAULT_ASSETS_RE.test(file) || assetsFilter(file)
     },
+    /**日志处理器 */
     logger,
     packageCache: new Map(),
     createResolver,
+    /**预构建配置 */
     optimizeDeps: {
       disabled: 'build',
       ...optimizeDeps,
@@ -676,11 +697,12 @@ export async function resolveConfig(
     getSortedPlugins: undefined!,
     getSortedPluginHooks: undefined!
   }
+  // 用 resolved 变量存储全部已经规范后的配置
   const resolved: ResolvedConfig = {
     ...config,
     ...resolvedConfig
   }
-
+  // 合并内部插件和用户定义插件
   ;(resolved.plugins as Plugin[]) = await resolvePlugins(
     resolved,
     prePlugins,
@@ -706,7 +728,7 @@ export async function resolveConfig(
     createPluginHookUtils(resolvedConfig.worker.plugins)
   )
 
-  // call configResolved hooks
+  // call configResolved hooks （执行configResolved钩子）
   await Promise.all([
     ...resolved
       .getSortedPluginHooks('configResolved')
@@ -1104,6 +1126,11 @@ async function runConfigHook(
         conf = mergeConfig(conf, res)
       }
     }
+    /**
+     * 注意两个细节，
+     * config 钩子函数可以是一个 Promise，config 有返回值即 res 存在，就会执行 mergeConfig ，
+     * 这种机制可以让你把 enforece: pre 插件的配置传给 enforce: post 的插件；
+     */
   }
 
   return conf
