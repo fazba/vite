@@ -19,18 +19,17 @@ export class ModuleNode {
    * Resolved file system path + query
    */
   id: string | null = null
-  file: string | null = null
+  file: string | null = null //文件路径
   type: 'js' | 'css' // 节点类型，脚本或者样式
-  info?: ModuleInfo
+  info?: ModuleInfo // 模块信息，引用 rollup 的 ModuleInfo
   meta?: Record<string, any>
-  importers = new Set<ModuleNode>() // 引用者
-  importedModules = new Set<ModuleNode>()
-  /**当前模块热更的依赖 */
-  acceptedHmrDeps = new Set<ModuleNode>()
+  importers = new Set<ModuleNode>() // 引用者，代表哪些模块引用了这个模块，也叫前置依赖
+  importedModules = new Set<ModuleNode>() // 依赖模块，当前模块依赖引入了哪些模块，也叫后置依赖
+  acceptedHmrDeps = new Set<ModuleNode>() // 当前模块热更“接受”的模块
   acceptedHmrExports: Set<string> | null = null
   importedBindings: Map<string, Set<string>> | null = null
   isSelfAccepting?: boolean
-  transformResult: TransformResult | null = null
+  transformResult: TransformResult | null = null //转换结果
   ssrTransformResult: TransformResult | null = null
   ssrModule: Record<string, any> | null = null
   ssrError: Error | null = null
@@ -69,11 +68,12 @@ export type ResolvedUrl = [
 export class ModuleGraph {
   urlToModuleMap = new Map<string, ModuleNode>()
   idToModuleMap = new Map<string, ModuleNode>()
-  // a single file may corresponds to multiple modules with different queries
+  // a single file may corresponds to multiple modules with different queries (一个文件对应多个模块)
   fileToModulesMap = new Map<string, Set<ModuleNode>>()
-  safeModulesPath = new Set<string>()
+  safeModulesPath = new Set<string>() // /@fs 的模块
 
   constructor(
+    // 插件容器的 resolveId 方法
     private resolveId: (
       url: string,
       ssr: boolean
@@ -105,7 +105,7 @@ export class ModuleGraph {
       })
     }
   }
-
+  /**使指定模块失效 */
   invalidateModule(
     mod: ModuleNode,
     seen: Set<ModuleNode> = new Set(),
@@ -120,7 +120,7 @@ export class ModuleGraph {
     mod.ssrTransformResult = null
     invalidateSSRModule(mod, seen)
   }
-
+  /**使全部模块失效 */
   invalidateAll(): void {
     const timestamp = Date.now()
     const seen = new Set<ModuleNode>()
@@ -133,6 +133,7 @@ export class ModuleGraph {
    * Update the module graph based on a module's updated imports information
    * If there are dependencies that no longer have any importers, they are
    * returned as a Set.
+   * 更新模块依赖信息
    */
   async updateModuleInfo(
     mod: ModuleNode,
@@ -189,12 +190,15 @@ export class ModuleGraph {
     const [url, resolvedId, meta] = await this.resolveUrl(rawUrl, ssr)
     let mod = this.idToModuleMap.get(resolvedId)
     if (!mod) {
+      /**模块节点 */
       mod = new ModuleNode(url, setIsSelfAccepting)
       if (meta) mod.meta = meta
       this.urlToModuleMap.set(url, mod)
-      mod.id = resolvedId
+      mod.id = resolvedId //id 就是 import 来的路径
       this.idToModuleMap.set(resolvedId, mod)
+      // 设置节点的file 信息
       const file = (mod.file = cleanUrl(resolvedId))
+      // 处理 file 跟模块的关系
       let fileMappedModules = this.fileToModulesMap.get(file)
       if (!fileMappedModules) {
         fileMappedModules = new Set()
@@ -214,6 +218,7 @@ export class ModuleGraph {
   // url because they are inlined into the main css import. But they still
   // need to be represented in the module graph so that they can trigger
   // hmr in the importing css file.
+  // （根据引入生成file，比如 css 常用的 import，在 css 代码里面没有 url 但是这种也属于模块图中的节点）
   createFileOnlyEntry(file: string): ModuleNode {
     file = normalizePath(file)
     let fileMappedModules = this.fileToModulesMap.get(file)
@@ -236,12 +241,12 @@ export class ModuleGraph {
   }
 
   // for incoming urls, it is important to:
-  // 1. remove the HMR timestamp query (?t=xxxx)
+  // 1. remove the HMR timestamp query (?t=xxxx)   （移除 HMR 的时间戳）
   // 2. resolve its extension so that urls with or without extension all map to
-  // the same module
+  // the same module  （处理文件后缀，保证文件名一致时（后缀即使不一样）也能够映射到同一个模块）
   async resolveUrl(url: string, ssr?: boolean): Promise<ResolvedUrl> {
     url = removeImportQuery(removeTimestampQuery(url))
-    const resolved = await this.resolveId(url, !!ssr)
+    const resolved = await this.resolveId(url, !!ssr) // 使用 pluginContainer.resolveId 去解析 url
     const resolvedId = resolved?.id || url
     if (
       url !== resolvedId &&

@@ -124,7 +124,7 @@ async function doTransform(
 
   const module = await server.moduleGraph.getModuleByUrl(url, ssr)
 
-  // check if we have a fresh cache
+  // check if we have a fresh cache  （dev 下缓存解析转换后的结果）
   const cached =
     module && (ssr ? module.ssrTransformResult : module.transformResult)
   if (cached) {
@@ -138,7 +138,7 @@ async function doTransform(
     return cached
   }
 
-  // resolve
+  // resolve    （拿到模块对应的绝对路径）
   const id =
     (await pluginContainer.resolveId(url, undefined, { ssr }))?.id || url
 
@@ -168,6 +168,9 @@ async function loadAndTransform(
 
   // load
   const loadStart = isDebug ? performance.now() : 0
+  /**
+   * 调用load钩子
+   */
   const loadResult = await pluginContainer.load(id, { ssr })
   if (loadResult == null) {
     // if this is an html request and there is no load result, skip ahead to
@@ -190,6 +193,7 @@ async function loadAndTransform(
         }
       }
     }
+    // sourcemap 代码
     if (code) {
       try {
         map = (
@@ -203,6 +207,8 @@ async function loadAndTransform(
       }
     }
   } else {
+    // 如果 load 返回的结果不是为空，并且返回的是一个对象，code 和 map
+    // 也有可能返回的是一个字符串，也就是 code
     isDebug && debugLoad(`${timeFrom(loadStart)} [plugin] ${prettyUrl}`)
     if (isObject(loadResult)) {
       code = loadResult.code
@@ -224,12 +230,16 @@ async function loadAndTransform(
     }
   }
 
-  // ensure module in graph after successful load
+  // ensure module in graph after successful load  （确保模块在模块图中正常加载）
   const mod = await moduleGraph.ensureEntryFromUrl(url, ssr)
+  // 确保模块文件被文件监听器监听
   ensureWatchedFile(watcher, mod.file, root)
 
   // transform
   const transformStart = isDebug ? performance.now() : 0
+  /**
+   * 调用transform钩子
+   */
   const transformResult = await pluginContainer.transform(code, id, {
     inMap: map,
     ssr

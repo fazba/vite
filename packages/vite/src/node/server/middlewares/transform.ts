@@ -156,11 +156,11 @@ export function transformMiddleware(
         // strip ?import
         url = removeImportQuery(url)
         // Strip valid id prefix. This is prepended to resolved Ids that are
-        // not valid browser import specifiers by the importAnalysis plugin.
+        // not valid browser import specifiers by the importAnalysis plugin.  （去除有效的 id 前缀。这是由 importAnalysis 插件在解析的不是有效浏览器导入说明符的 Id 之前添加的）
         url = unwrapId(url)
 
         // for CSS, we need to differentiate between normal CSS requests and
-        // imports
+        // imports  （区分 css 请求和导入）
         if (
           isCSSRequest(url) &&
           !isDirectRequest(url) &&
@@ -169,7 +169,7 @@ export function transformMiddleware(
           url = injectQuery(url, 'direct')
         }
 
-        // check if we can return 304 early
+        // check if we can return 304 early  （二次加载，利用 etag 做协商缓存）
         const ifNoneMatch = req.headers['if-none-match']
         if (
           ifNoneMatch &&
@@ -181,7 +181,7 @@ export function transformMiddleware(
           return res.end()
         }
 
-        // resolve, load and transform using the plugin container
+        // resolve, load and transform using the plugin container  （使用插件容器解析、加载、转换）
         const result = await transformRequest(url, server, {
           html: req.headers.accept?.includes('text/html')
         })
@@ -190,6 +190,7 @@ export function transformMiddleware(
           const type = isDirectCSSRequest(url) ? 'css' : 'js'
           const isDep =
             DEP_VERSION_RE.test(url) || depsOptimizer?.isOptimizedDepUrl(url)
+          // 输出
           return send(req, res, result.code, type, {
             etag: result.etag,
             // allow browser to cache npm deps!
