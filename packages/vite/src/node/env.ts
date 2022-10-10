@@ -9,6 +9,7 @@ export function loadEnv(
   envDir: string,
   prefixes: string | string[] = 'VITE_'
 ): Record<string, string> {
+  // local 是 vite 内置的后缀名，比如 .env.development.local、.env.local，所以不给用
   if (mode === 'local') {
     throw new Error(
       `"local" cannot be used as a mode name because it conflicts with ` +
@@ -17,6 +18,7 @@ export function loadEnv(
   }
   prefixes = arraify(prefixes)
   const env: Record<string, string> = {}
+  // 默认会去读取的环境变量文件
   const envFiles = [
     /** mode local file */ `.env.${mode}.local`,
     /** mode file */ `.env.${mode}`,
@@ -26,6 +28,7 @@ export function loadEnv(
 
   // check if there are actual env variables starting with VITE_*
   // these are typically provided inline and should be prioritized
+  //（ 通过CLI参数定义的一些环境变量中，如果带有 VITE 前缀，我们也能够从 import.meta.env 上获取到）
   for (const key in process.env) {
     if (
       prefixes.some((prefix) => key.startsWith(prefix)) &&
