@@ -471,13 +471,13 @@ export async function resolveConfig(
   const resolvedRoot = normalizePath(
     config.root ? path.resolve(config.root) : process.cwd()
   )
-
+  /**客户端代码的别名 */
   const clientAlias = [
     { find: /^[\/]?@vite\/env/, replacement: () => ENV_ENTRY },
     { find: /^[\/]?@vite\/client/, replacement: () => CLIENT_ENTRY }
   ]
 
-  // resolve alias with internal client alias
+  // resolve alias with internal client alias  （合并内部 alias 和用户定义的 alias 配置）
   const resolvedAlias = normalizeAlias(
     mergeAlias(
       // @ts-ignore because @rollup/plugin-alias' type doesn't allow function

@@ -1093,11 +1093,13 @@ export function normalizeAlias(o: AliasOptions = []): Alias[] {
 
 // https://github.com/vitejs/vite/issues/1363
 // work around https://github.com/rollup/plugins/issues/759
+// 判断 find、replacement 是否以 / 结尾，是的话就删除掉 /。这个规定来自 @rollup/plugin-alias。然后返回 alias。
 function normalizeSingleAlias({
   find,
   replacement,
   customResolver
 }: Alias): Alias {
+  // 如果find是个字符串，并且find和replacement都以 / 结尾，处理掉最后的 /
   if (
     typeof find === 'string' &&
     find.endsWith('/') &&

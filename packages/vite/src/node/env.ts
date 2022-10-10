@@ -73,6 +73,7 @@ export function resolveEnvPrefix({
   envPrefix = 'VITE_'
 }: UserConfig): string[] {
   envPrefix = arraify(envPrefix)
+  // 如果定义了空的环境变量前缀，那么就能直接获取整个 process 的环境变量，这是危险的操作，所以给了一个敏感信息的提示
   if (envPrefix.some((prefix) => prefix === '')) {
     throw new Error(
       `envPrefix option contains value '', which could lead unexpected exposure of sensitive information.`
