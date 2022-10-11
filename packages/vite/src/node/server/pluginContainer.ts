@@ -174,7 +174,7 @@ export async function createPluginContainer(
   })
 
   // ---------------------------------------------------------------------------
-
+  /**监听文件数组 */
   const watchFiles = new Set<string>()
 
   // TODO: use import()
@@ -185,6 +185,7 @@ export async function createPluginContainer(
     _require.resolve('rollup'),
     '../../package.json'
   )
+  /**最小上下文信息 */
   const minimalContext: MinimalPluginContext = {
     meta: {
       rollupVersion: JSON.parse(fs.readFileSync(rollupPkgPath, 'utf-8'))
@@ -192,7 +193,7 @@ export async function createPluginContainer(
       watchMode: true
     }
   }
-
+  /**使用了不兼容 vite 的插件告警函数 */
   function warnIncompatibleMethod(method: string, plugin: string) {
     logger.warn(
       colors.cyan(`[plugin:${plugin}] `) +
@@ -268,6 +269,7 @@ export async function createPluginContainer(
   // we should create a new context for each async hook pipeline so that the
   // active plugin in that pipeline can be tracked in a concurrency-safe manner.
   // using a class to make creating new contexts more efficient
+  // (插件上下文插件，实现了 rollup 插件的接口)
   class Context implements PluginContext {
     meta = minimalContext.meta
     ssr = false
@@ -281,7 +283,9 @@ export async function createPluginContainer(
     constructor(initialPlugin?: Plugin) {
       this._activePlugin = initialPlugin || null
     }
-
+    /**
+     * 编译代码
+     */
     parse(code: string, opts: any = {}) {
       return parser.parse(code, {
         sourceType: 'module',
@@ -325,7 +329,9 @@ export async function createPluginContainer(
         ? moduleGraph.idToModuleMap.keys()
         : Array.prototype[Symbol.iterator]()
     }
-
+    /**
+     * 添加热更监听文件
+     */
     addWatchFile(id: string) {
       watchFiles.add(id)
       ;(this._addedImports || (this._addedImports = new Set())).add(id)
@@ -530,7 +536,7 @@ export async function createPluginContainer(
   }
 
   let closed = false
-
+  // 定义插件容器 -> rollup 构建钩子
   const container: PluginContainer = {
     /**服务启动时读取配置的钩子 */
     options: await (async () => {

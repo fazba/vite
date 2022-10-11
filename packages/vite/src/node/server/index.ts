@@ -606,6 +606,7 @@ export async function createServer(
       return initingServer
     }
     initingServer = (async function () {
+      // 插件容器初始化
       await container.buildStart({})
       if (isDepsOptimizerEnabled(config, false)) {
         // non-ssr
