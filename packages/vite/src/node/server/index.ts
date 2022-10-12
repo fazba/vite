@@ -481,7 +481,7 @@ export async function createServer(
   }
 
   watcher.on('change', async (file) => {
-    file = normalizePath(file)
+    file = normalizePath(file) //将\\替换成 /
     if (file.endsWith('/package.json')) {
       return invalidatePackageData(packageCache, file)
     }
