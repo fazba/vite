@@ -5,7 +5,7 @@ export type ModuleNamespace = Record<string, any> & {
 }
 
 export interface ViteHotContext {
-  readonly data: any
+  readonly data: any //对象在同一个更新模块的不同实例之间持久化。它可以用于将信息从模块的前一个版本传递到下一个版本。
   // 热更接收的模块，有四种定义：
   accept(): void //没有参数，代表接收自身
   accept(cb: (mod: ModuleNamespace | undefined) => void): void // mod是更新后的模块信息
@@ -23,7 +23,7 @@ export interface ViteHotContext {
 
   dispose(cb: (data: any) => void): void // 清除任何更新导致的持久副作用
   decline(): void
-  invalidate(): void // 调用后直接刷新页面
+  invalidate(): void // 调用后直接刷新页面, location.reload
   /**模块监听热更事件 */
   on<T extends string>(
     event: T,
