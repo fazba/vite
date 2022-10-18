@@ -44,18 +44,20 @@ export async function handleHMRUpdate(
   server: ViteDevServer
 ): Promise<void> {
   const { ws, config, moduleGraph } = server
-  const shortFile = getShortName(file, config.root)
+  const shortFile = getShortName(file, config.root) // 获取简短文件名
   const fileName = path.basename(file)
-
+  // 判断配置文件修改，比如 vite.config.ts
   const isConfig = file === config.configFile
+  // 判断配置文件的依赖
   const isConfigDependency = config.configFileDependencies.some(
     (name) => file === name
   )
+  // 判断环境变量文件
   const isEnv =
     config.inlineConfig.envFile !== false &&
     (fileName === '.env' || fileName.startsWith('.env.'))
   if (isConfig || isConfigDependency || isEnv) {
-    // auto restart server
+    // auto restart server  （直接重启服务）
     debugHmr(`[config change] ${colors.dim(shortFile)}`)
     config.logger.info(
       colors.green(
@@ -73,7 +75,7 @@ export async function handleHMRUpdate(
 
   debugHmr(`[file change] ${colors.dim(shortFile)}`)
 
-  // (dev only) the client itself cannot be hot updated.
+  // (dev only) the client itself cannot be hot updated.  （vite 的 client 修改了，全量刷新 -> 刷新页面）
   if (file.startsWith(normalizedClientDir)) {
     ws.send({
       type: 'full-reload',
@@ -89,7 +91,7 @@ export async function handleHMRUpdate(
   const hmrContext: HmrContext = {
     file,
     timestamp,
-    modules: mods ? [...mods] : [],
+    modules: mods ? [...mods] : [], // 受更改文件影响的模块数组
     read: () => readModifiedFile(file),
     server
   }
