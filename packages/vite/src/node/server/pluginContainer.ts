@@ -174,7 +174,7 @@ export async function createPluginContainer(
   })
 
   // ---------------------------------------------------------------------------
-
+  /**监听文件数组 */
   const watchFiles = new Set<string>()
 
   // TODO: use import()
@@ -185,6 +185,7 @@ export async function createPluginContainer(
     _require.resolve('rollup'),
     '../../package.json'
   )
+  /**最小上下文信息 */
   const minimalContext: MinimalPluginContext = {
     meta: {
       rollupVersion: JSON.parse(fs.readFileSync(rollupPkgPath, 'utf-8'))
@@ -192,7 +193,7 @@ export async function createPluginContainer(
       watchMode: true
     }
   }
-
+  /**使用了不兼容 vite 的插件告警函数 */
   function warnIncompatibleMethod(method: string, plugin: string) {
     logger.warn(
       colors.cyan(`[plugin:${plugin}] `) +
@@ -247,15 +248,17 @@ export async function createPluginContainer(
     if (!module) {
       return null
     }
+    // module.info 的类型来自 rollup 的 ModuleInfo
     if (!module.info) {
       module.info = new Proxy(
         { id, meta: module.meta || EMPTY_OBJECT } as ModuleInfo,
+        //proxy的作用 在获取不存在的属性时给出 Error 提示
         ModuleInfoProxy
       )
     }
     return module.info
   }
-
+  /**更新模块的 meta 属性 */
   function updateModuleInfo(id: string, { meta }: { meta?: object | null }) {
     if (meta) {
       const moduleInfo = getModuleInfo(id)
@@ -268,6 +271,7 @@ export async function createPluginContainer(
   // we should create a new context for each async hook pipeline so that the
   // active plugin in that pipeline can be tracked in a concurrency-safe manner.
   // using a class to make creating new contexts more efficient
+  // (插件上下文插件，实现了 rollup 插件的接口)
   class Context implements PluginContext {
     meta = minimalContext.meta
     ssr = false
@@ -281,7 +285,9 @@ export async function createPluginContainer(
     constructor(initialPlugin?: Plugin) {
       this._activePlugin = initialPlugin || null
     }
-
+    /**
+     * 编译代码
+     */
     parse(code: string, opts: any = {}) {
       return parser.parse(code, {
         sourceType: 'module',
@@ -325,7 +331,9 @@ export async function createPluginContainer(
         ? moduleGraph.idToModuleMap.keys()
         : Array.prototype[Symbol.iterator]()
     }
-
+    /**
+     * 添加热更监听文件
+     */
     addWatchFile(id: string) {
       watchFiles.add(id)
       ;(this._addedImports || (this._addedImports = new Set())).add(id)
@@ -530,14 +538,17 @@ export async function createPluginContainer(
   }
 
   let closed = false
-
+  // 定义插件容器 -> rollup 构建钩子
   const container: PluginContainer = {
     /**服务启动时读取配置的钩子 */
     options: await (async () => {
+      // 用户从 build.rollupOptions 自定义 Rollup 底层配置
       let options = rollupOptions
+
       for (const optionsHook of getSortedPluginHooks('options')) {
         options = (await optionsHook.call(minimalContext, options)) || options
       }
+      // 能够给 rollup 底层的编译器配置插件
       if (options.acornInjectPlugins) {
         parser = acorn.Parser.extend(
           ...(arraify(options.acornInjectPlugins) as any)
@@ -583,6 +594,7 @@ export async function createPluginContainer(
           'handler' in plugin.resolveId
             ? plugin.resolveId.handler
             : plugin.resolveId
+        // 执行插件的 resolveId 函数
         const result = await handler.call(ctx as any, rawId, importer, {
           custom: options?.custom,
           isEntry: !!options?.isEntry,
@@ -590,7 +602,7 @@ export async function createPluginContainer(
           scan
         })
         if (!result) continue
-
+        // 处理返回值
         if (typeof result === 'string') {
           id = result
         } else {
@@ -621,15 +633,14 @@ export async function createPluginContainer(
           )
         }
       }
-
       if (id) {
+        //返回的 id 如果是外链，就直接返回；否则就做路径的规范化，输出绝对路径。
         partial.id = isExternalUrl(id) ? id : normalizePath(id)
         return partial as PartialResolvedId
       } else {
         return null
       }
     },
-    /**自定义加载器钩子 */
     async load(id, options) {
       const ssr = options?.ssr
       const ctx = new Context()
@@ -703,11 +714,13 @@ export async function createPluginContainer(
     async close() {
       if (closed) return
       const ctx = new Context()
+      // 循环调用插件的 buildEnd 钩子
       await hookParallel(
         'buildEnd',
         () => ctx,
         () => []
       )
+      // 循坏调用插件的 closeBundle 钩子
       await hookParallel(
         'closeBundle',
         () => ctx,

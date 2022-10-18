@@ -87,7 +87,7 @@ export function transformRequest(
         }
       })
   }
-
+  // 模块解析、转换
   const request = doTransform(url, server, options, timestamp)
 
   // Avoid clearing the cache of future requests if aborted
@@ -138,7 +138,7 @@ async function doTransform(
     return cached
   }
 
-  // resolve    （拿到模块对应的绝对路径）
+  // resolve    （resolveId返回模块对应本地的绝对路径）
   const id =
     (await pluginContainer.resolveId(url, undefined, { ssr }))?.id || url
 
@@ -232,7 +232,7 @@ async function loadAndTransform(
 
   // ensure module in graph after successful load  （确保模块在模块图中正常加载）
   const mod = await moduleGraph.ensureEntryFromUrl(url, ssr)
-  // 确保模块文件被文件监听器监听
+  // 将模块文件添加到文件监听器监听
   ensureWatchedFile(watcher, mod.file, root)
 
   // transform
