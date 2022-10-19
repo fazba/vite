@@ -136,10 +136,12 @@ export function updateModules(
 ): void {
   const updates: Update[] = []
   const invalidatedModules = new Set<ModuleNode>()
+  /**页面刷新符号 */
   let needFullReload = false
 
   for (const mod of modules) {
     invalidate(mod, timestamp, invalidatedModules)
+    // 如果需要重新刷新，不再去计算边界
     if (needFullReload) {
       continue
     }
@@ -148,12 +150,14 @@ export function updateModules(
       boundary: ModuleNode
       acceptedVia: ModuleNode
     }>()
+    /**死路标志 */
     const hasDeadEnd = propagateUpdate(mod, boundaries)
+    // 死路的话直接刷新页面
     if (hasDeadEnd) {
       needFullReload = true
       continue
     }
-
+    // 否则的话，遍历全部边界，触发模块更新
     updates.push(
       ...[...boundaries].map(({ boundary, acceptedVia }) => ({
         type: `${boundary.type}-update` as const,
@@ -327,11 +331,15 @@ function invalidate(mod: ModuleNode, timestamp: number, seen: Set<ModuleNode>) {
   }
   seen.add(mod)
   mod.lastHMRTimestamp = timestamp
+  // 置空一系列信息
   mod.transformResult = null
   mod.ssrModule = null
   mod.ssrError = null
   mod.ssrTransformResult = null
+  // 遍历依赖者，如果热更新的模块中不存在该模块
   mod.importers.forEach((importer) => {
+    // 当前模块热更的依赖不包含当前模块，accept 的参数，例子中 foo 是 bar 的引用者，这里的判断是 true；
+    // 如果不存在也就是 accept 的参数是空时就清空引用者的信息
     if (!importer.acceptedHmrDeps.has(mod)) {
       invalidate(importer, timestamp, seen)
     }
