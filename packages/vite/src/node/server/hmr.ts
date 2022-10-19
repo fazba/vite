@@ -336,10 +336,8 @@ function invalidate(mod: ModuleNode, timestamp: number, seen: Set<ModuleNode>) {
   mod.ssrModule = null
   mod.ssrError = null
   mod.ssrTransformResult = null
-  // 遍历依赖者，如果热更新的模块中不存在该模块
   mod.importers.forEach((importer) => {
-    // 当前模块热更的依赖不包含当前模块，accept 的参数，例子中 foo 是 bar 的引用者，这里的判断是 true；
-    // 如果不存在也就是 accept 的参数是空时就清空引用者的信息
+    // 当模块热更的依赖不包含当前模块，也就是 accept 的参数是空时就清空引用者的信息
     if (!importer.acceptedHmrDeps.has(mod)) {
       invalidate(importer, timestamp, seen)
     }
