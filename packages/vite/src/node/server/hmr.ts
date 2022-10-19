@@ -83,7 +83,7 @@ export async function handleHMRUpdate(
     })
     return
   }
-
+  // 获取文件关联的模块
   const mods = moduleGraph.getModulesByFile(file)
 
   // check if any plugin wants to perform custom HMR handling
@@ -92,19 +92,21 @@ export async function handleHMRUpdate(
     file,
     timestamp,
     modules: mods ? [...mods] : [], // 受更改文件影响的模块数组
+    // 这是一个异步读函数，它返回文件的内容。之所以这样做，是因为在某些系统上，文件更改的回调函数可能会在编辑器完成文件更新之前过快地触发并 fs.readFile 直接会返回空内容。传入的 read 函数规范了这种行为。
     read: () => readModifiedFile(file),
     server
   }
-
+  // 遍历插件，调用 handleHotUpdate 钩子
   for (const hook of config.getSortedPluginHooks('handleHotUpdate')) {
+    /**受更改文件影响的模块数组 */
     const filteredModules = await hook(hmrContext)
     if (filteredModules) {
       hmrContext.modules = filteredModules
     }
   }
-
+  // 文件修改没有影响其他模块
   if (!hmrContext.modules.length) {
-    // html file cannot be hot updated
+    // html file cannot be hot updated  （是 html 的话，直接刷新页面）
     if (file.endsWith('.html')) {
       config.logger.info(colors.green(`page reload `) + colors.dim(shortFile), {
         clear: true,
@@ -122,7 +124,7 @@ export async function handleHMRUpdate(
     }
     return
   }
-
+  // 核心，执行模块更新
   updateModules(shortFile, hmrContext.modules, timestamp, server)
 }
 
