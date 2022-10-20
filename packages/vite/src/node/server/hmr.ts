@@ -249,7 +249,7 @@ function propagateUpdate(
     )
     return false
   }
-
+  // 如果模块自我“接受”，加入到边界数组中
   if (node.isSelfAccepting) {
     boundaries.add({
       boundary: node,
@@ -258,6 +258,7 @@ function propagateUpdate(
 
     // additionally check for CSS importers, since a PostCSS plugin like
     // Tailwind JIT may register any file as a dependency to a CSS file.
+    // 将 css 相关的资源引入全部加到 boundaries
     for (const importer of node.importers) {
       if (isCSSRequest(importer.url) && !currentChain.includes(importer)) {
         propagateUpdate(importer, boundaries, currentChain.concat(importer))
@@ -314,7 +315,7 @@ function propagateUpdate(
     }
 
     if (currentChain.includes(importer)) {
-      // circular deps is considered dead end
+      // circular deps is considered dead end   (循环引用直接刷新)
       return true
     }
 
