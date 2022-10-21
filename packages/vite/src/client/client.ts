@@ -53,6 +53,7 @@ try {
             'Check out your Vite / network configuration and https://vitejs.dev/config/server-options.html#server-hmr .'
         )
       })
+      // 监听 socket 信息
       socket.addEventListener(
         'open',
         () => {
@@ -69,7 +70,7 @@ try {
 } catch (error) {
   console.error(`[vite] failed to connect to websocket (${error}). `)
 }
-
+/**初始化 socket 链接 */
 function setupWebSocket(
   protocol: string,
   hostAndPath: string,
@@ -127,7 +128,7 @@ function cleanUrl(pathname: string): string {
 
 let isFirstUpdate = true
 const outdatedLinkTags = new WeakSet<HTMLLinkElement>()
-
+/**处理后端返回的消息 */
 async function handleMessage(payload: HMRPayload) {
   switch (payload.type) {
     case 'connected':
@@ -459,14 +460,14 @@ interface HotCallback {
 }
 
 type CustomListenersMap = Map<string, ((data: any) => void)[]>
-
 const hotModulesMap = new Map<string, HotModule>()
 const disposeMap = new Map<string, (data: any) => void | Promise<void>>()
 const pruneMap = new Map<string, (data: any) => void | Promise<void>>()
 const dataMap = new Map<string, any>()
 const customListenersMap: CustomListenersMap = new Map()
+/**存储模块的默认事件 */
 const ctxToListenersMap = new Map<string, CustomListenersMap>()
-
+/**热更新初始化流程 */
 export function createHotContext(ownerPath: string): ViteHotContext {
   if (!dataMap.has(ownerPath)) {
     dataMap.set(ownerPath, {})
@@ -495,19 +496,20 @@ export function createHotContext(ownerPath: string): ViteHotContext {
 
   const newListeners: CustomListenersMap = new Map()
   ctxToListenersMap.set(ownerPath, newListeners)
-
+  /**收集热更模块，客户端接收到依赖的处理函数，import.meta.hot.accept */
   function acceptDeps(deps: string[], callback: HotCallback['fn'] = () => {}) {
     const mod: HotModule = hotModulesMap.get(ownerPath) || {
       id: ownerPath,
       callbacks: []
     }
+    // 定义的依赖和回调存到 mod.callbacks，并更新 hotModulesMap
     mod.callbacks.push({
       deps,
       fn: callback
     })
     hotModulesMap.set(ownerPath, mod)
   }
-
+  /**HMR的客户端 API，等于 import.meta.hot */
   const hot: ViteHotContext = {
     get data() {
       return dataMap.get(ownerPath)
@@ -520,6 +522,7 @@ export function createHotContext(ownerPath: string): ViteHotContext {
       } else if (typeof deps === 'string') {
         // explicit deps
         acceptDeps([deps], ([mod]) => callback && callback(mod))
+        // 对应 import.meta.hot.accept(['./bar.js', './foo.js'], () => {}) 的用法
       } else if (Array.isArray(deps)) {
         acceptDeps(deps, callback)
       } else {
@@ -532,7 +535,7 @@ export function createHotContext(ownerPath: string): ViteHotContext {
     acceptExports(_: string | readonly string[], callback?: any) {
       acceptDeps([ownerPath], callback && (([mod]) => callback(mod)))
     },
-
+    /**清除任何更新导致的持久副作用 */
     dispose(cb) {
       disposeMap.set(ownerPath, cb)
     },
