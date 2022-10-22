@@ -143,11 +143,13 @@ async function handleMessage(payload: HMRPayload) {
       }, __HMR_TIMEOUT__)
       break
     case 'update':
+      // 调用全部 beforeUpdate 事件
       notifyListeners('vite:beforeUpdate', payload)
       // if this is the first update and there's already an error overlay, it
       // means the page opened with existing server compile error and the whole
       // module script failed to load (since one of the nested imports is 500).
       // in this case a normal update won't work and a full reload is needed.
+      // 判断是否有错误遮罩层，如果有并且是首次更新就直接刷新页面了，否则清除错误遮罩然后依次更新模块。
       if (isFirstUpdate && hasErrorOverlay()) {
         window.location.reload()
         return
@@ -155,6 +157,7 @@ async function handleMessage(payload: HMRPayload) {
         clearErrorOverlay()
         isFirstUpdate = false
       }
+      // 遍历server发回的更新列表
       payload.updates.forEach((update) => {
         if (update.type === 'js-update') {
           queueUpdate(fetchUpdate(update))
@@ -294,6 +297,7 @@ async function queueUpdate(p: Promise<(() => void) | undefined>) {
     pending = false
     const loading = [...queued]
     queued = []
+    // 保证回调函数的执行顺序跟 http 请求的一致
     ;(await Promise.all(loading)).forEach((fn) => fn && fn())
   }
 }
@@ -389,7 +393,7 @@ export function removeStyle(id: string): void {
     sheetsMap.delete(id)
   }
 }
-
+/**加载更新 */
 async function fetchUpdate({
   path,
   acceptedPath,
@@ -397,6 +401,15 @@ async function fetchUpdate({
   explicitImportRequired
 }: Update) {
   const mod = hotModulesMap.get(path)
+  /**
+   * 如果模块不存在就直接终止，
+   * 存在则判断是否“自我接受”，
+   * 是的话就把自己加入到待更新集合，
+   * 否则就去遍历全部 deps 加入到更新集合并重新获取回调函数。
+   * 之后遍历待更新队列 modulesToUpdate，
+   * 如果模块有 dispose 函数的定义就清除副作用。
+   * 再就是来到最核心的地方，通过动态 import 去加载最新的资源并更新模块信息，保证最后的回调拿到的模块是最新的。
+   */
   if (!mod) {
     // In a code-splitting project,
     // it is common that the hot-updating module is not loaded yet.
@@ -405,7 +418,7 @@ async function fetchUpdate({
   }
 
   const moduleMap = new Map<string, ModuleNamespace>()
-  const isSelfUpdate = path === acceptedPath
+  const isSelfUpdate = path === acceptedPath //是否自我更新
 
   // determine the qualified callbacks before we re-import the modules
   const qualifiedCallbacks = mod.callbacks.filter(({ deps }) =>
