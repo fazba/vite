@@ -240,7 +240,7 @@ export async function optimizeDeps(
   }
 
   const deps = await discoverProjectDependencies(config)
-
+  /**预编译依赖的信息 */
   const depsString = depsLogString(Object.keys(deps))
   log(colors.green(`Optimizing dependencies:\n  ${depsString}`))
 
@@ -351,7 +351,7 @@ export function loadCachedDepOptimizationMetadata(
   }
 
   const depsCacheDir = getDepsCacheDir(config, ssr)
-
+  //不强制刷新
   if (!force) {
     let cachedMetadata: DepOptimizationMetadata | undefined
     try {
@@ -383,7 +383,7 @@ export function loadCachedDepOptimizationMetadata(
 export async function discoverProjectDependencies(
   config: ResolvedConfig
 ): Promise<Record<string, string>> {
-  const { deps, missing } = await scanImports(config)
+  const { deps, missing } = await scanImports(config) //获取依赖列表、丢失的依赖列表
 
   const missingIds = Object.keys(missing)
   if (missingIds.length) {
@@ -432,8 +432,11 @@ export function depsLogString(qualifiedIds: string[]): string {
     return colors.yellow(qualifiedIds.join(`, `))
   } else {
     const total = qualifiedIds.length
+    // pre-bundling 的列表最多展示 5 项
     const maxListed = 5
+    /**列表的数量 */
     const listed = Math.min(total, maxListed)
+    /**剩余的数量 */
     const extra = Math.max(0, total - maxListed)
     return colors.yellow(
       qualifiedIds.slice(0, listed).join(`, `) +
@@ -465,13 +468,16 @@ export async function runOptimizeDeps(
   // until they have been processed. This also avoids leaving the deps cache
   // directory in a corrupted state if there is an error
   if (fs.existsSync(processingCacheDir)) {
+    // 如果存在缓存目录，清空目录
     emptyDir(processingCacheDir)
   } else {
+    //创建多层级缓存目录
     fs.mkdirSync(processingCacheDir, { recursive: true })
   }
 
   // a hint for Node.js
   // all files in the cache directory should be recognized as ES modules
+  // （缓存目录的模块被识别成 ESM）
   writeFile(
     path.resolve(processingCacheDir, 'package.json'),
     JSON.stringify({ type: 'module' })
@@ -1041,14 +1047,16 @@ function needsInterop(
 function isSingleDefaultExport(exports: readonly string[]) {
   return exports.length === 1 && exports[0] === 'default'
 }
-
+/**所有可能的依赖 lock 文件 */
 const lockfileFormats = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']
-
+/**获取依赖的 hash 值 */
 export function getDepHash(config: ResolvedConfig, ssr: boolean): string {
+  /**lock 文件的内容 */
   let content = lookupFile(config.root, lockfileFormats) || ''
   // also take config into account
   // only a subset of config options that can affect dep optimization
   const optimizeDeps = getDepOptimizationConfig(config, ssr)
+  // 同时也将跟部分会影响依赖的 config 的配置一起加入到计算 hash 值
   content += JSON.stringify(
     {
       mode: process.env.NODE_ENV || config.mode,

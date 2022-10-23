@@ -51,10 +51,11 @@ export async function scanImports(config: ResolvedConfig): Promise<{
   const start = performance.now()
 
   let entries: string[] = []
-
+  /**预构建自定义条目 */
   const explicitEntryPatterns = config.optimizeDeps.entries
+  /**rollup 入口点 */
   const buildInput = config.build.rollupOptions?.input
-
+  //自定义条目优先级最高
   if (explicitEntryPatterns) {
     entries = await globEntries(explicitEntryPatterns, config)
   } else if (buildInput) {
@@ -69,15 +70,17 @@ export async function scanImports(config: ResolvedConfig): Promise<{
       throw new Error('invalid rollupOptions.input value.')
     }
   } else {
+    // 默认情况下，Vite 会抓取你的 index.html 来检测需要预构建的依赖项
     entries = await globEntries('**/*.html', config)
   }
 
   // Non-supported entry file types and virtual files should not be scanned for
   // dependencies.
+  // （筛选合法的入口文件）
   entries = entries.filter(
     (entry) => isScannable(entry) && fs.existsSync(entry)
   )
-
+  // 找不到需要预构建的入口
   if (!entries.length) {
     if (!explicitEntryPatterns && !config.optimizeDeps.include) {
       config.logger.warn(
@@ -92,15 +95,17 @@ export async function scanImports(config: ResolvedConfig): Promise<{
   } else {
     debug(`Crawling dependencies using entries:\n  ${entries.join('\n  ')}`)
   }
-
+  /**依赖 */
   const deps: Record<string, string> = {}
+  /**缺失的依赖 */
   const missing: Record<string, string> = {}
   const container = await createPluginContainer(config)
+  /**esbuild 扫描的插件 */
   const plugin = esbuildScanPlugin(config, container, deps, missing, entries)
-
+  // 外部传入的 esbuild 配置
   const { plugins = [], ...esbuildOptions } =
     config.optimizeDeps?.esbuildOptions ?? {}
-
+  // 遍历所有入口全部进行预构建
   await Promise.all(
     entries.map((entry) =>
       build({
@@ -147,16 +152,22 @@ function globEntries(pattern: string | string[], config: ResolvedConfig) {
     suppressErrors: true // suppress EACCES errors
   })
 }
-
+// html <script type="module">
 const scriptModuleRE =
   /(<script\b[^>]*type\s*=\s*(?:"module"|'module')[^>]*>)(.*?)<\/script>/gims
+// vue < script > 的形式
 export const scriptRE = /(<script\b(?:\s[^>]*>|>))(.*?)<\/script>/gims
+// 匹配 html 中的注释
 export const commentRE = /<!--.*?-->/gs
+// 匹配 src 的内容
 const srcRE = /\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s'">]+))/im
+// 匹配 type 的内容
 const typeRE = /\btype\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s'">]+))/im
+// 匹配 lang 的内容
 const langRE = /\blang\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s'">]+))/im
+// 匹配 context 的内容
 const contextRE = /\bcontext\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s'">]+))/im
-
+/**esbuid 扫描依赖插件 */
 function esbuildScanPlugin(
   config: ResolvedConfig,
   container: PluginContainer,
@@ -175,6 +186,7 @@ function esbuildScanPlugin(
     if (seen.has(key)) {
       return seen.get(key)
     }
+    // 使用 vite 插件容的解析能力，获取具体的依赖信息
     const resolved = await container.resolveId(
       id,
       importer && normalizePath(importer),
@@ -194,12 +206,12 @@ function esbuildScanPlugin(
     '@vite/client',
     '@vite/env'
   ]
-
+  // 将 external 设置为 true 以将模块标记为外部，这意味着它不会包含在包中，而是会在运行时导入
   const externalUnlessEntry = ({ path }: { path: string }) => ({
     path,
     external: !entries.includes(path)
   })
-
+  // 返回 esbuild 的插件
   return {
     name: 'vite:dep-scan',
     setup(build) {
@@ -232,6 +244,7 @@ function esbuildScanPlugin(
 
       // html types: extract script contents -----------------------------------
       build.onResolve({ filter: htmlTypesRE }, async ({ path, importer }) => {
+        // 使用 vite 解析器来支持 url 和省略的扩展
         const resolved = await resolve(path, importer)
         if (!resolved) return
         // It is possible for the scanner to scan html types in node_modules.
@@ -244,6 +257,7 @@ function esbuildScanPlugin(
           return
         return {
           path: resolved,
+          // 将满足这类正则的文件全部归类成 html
           namespace: 'html'
         }
       })
@@ -253,19 +267,22 @@ function esbuildScanPlugin(
         { filter: htmlTypesRE, namespace: 'html' },
         async ({ path }) => {
           let raw = fs.readFileSync(path, 'utf-8')
-          // Avoid matching the content of the comment
+          // Avoid matching the content of the comment  (注释文字全部删掉)
           raw = raw.replace(commentRE, '<!---->')
-          const isHtml = path.endsWith('.html')
+          const isHtml = path.endsWith('.html') // 是不是 html 文件，也可能是 vue、svelte 等
           const regex = isHtml ? scriptModuleRE : scriptRE
+          // 注意点：对于带 g 的正则匹配，如果像匹配多个结果需要重置匹配索引
           regex.lastIndex = 0
           let js = ''
           let scriptId = 0
           let match: RegExpExecArray | null
           while ((match = regex.exec(raw))) {
+            //开始标签的内容、标签对内容
             const [, openTag, content] = match
             const typeMatch = openTag.match(typeRE)
             const type =
               typeMatch && (typeMatch[1] || typeMatch[2] || typeMatch[3])
+            // 匹配语言，比如 vue-ts 中经常写的 <script lang="ts">
             const langMatch = openTag.match(langRE)
             const lang =
               langMatch && (langMatch[1] || langMatch[2] || langMatch[3])
@@ -281,11 +298,13 @@ function esbuildScanPlugin(
               continue
             }
             let loader: Loader = 'js'
+            // 匹配解析器
             if (lang === 'ts' || lang === 'tsx' || lang === 'jsx') {
               loader = lang
             } else if (path.endsWith('.astro')) {
               loader = 'ts'
             }
+            //匹配src
             const srcMatch = openTag.match(srcRE)
             if (srcMatch) {
               const src = srcMatch[1] || srcMatch[2] || srcMatch[3]
@@ -381,9 +400,11 @@ function esbuildScanPlugin(
           filter: /^[\w@][^:]/
         },
         async ({ path: id, importer, pluginData }) => {
+          // 首先判断是否在外部入口列表中
           if (moduleListContains(exclude, id)) {
             return externalUnlessEntry({ path: id })
           }
+          // 缓存，对于在node_modules或者optimizeDeps.include中已经处理过的依赖，直接返回
           if (depImports[id]) {
             return externalUnlessEntry({ path: id })
           }
@@ -393,11 +414,15 @@ function esbuildScanPlugin(
             }
           })
           if (resolved) {
+            // 对于一些特殊的场景，也会将其视作 external 排除掉
             if (shouldExternalizeDep(resolved, id)) {
               return externalUnlessEntry({ path: id })
             }
+            // 判断是否在node_modules或者optimizeDeps.include中的依赖
             if (resolved.includes('node_modules') || include?.includes(id)) {
               // dependency or forced included, externalize and stop crawling
+              // 存到depImports中，这个对象就是外部传进来的deps，最后会写入到缓存文件中的对象
+              // 如果是这类依赖，直接将其视作为“外部依赖”，不在进行接下来的resolve、load
               if (isOptimizable(resolved, config.optimizeDeps)) {
                 depImports[id] = resolved
               }
@@ -485,6 +510,7 @@ function esbuildScanPlugin(
         if (ext === 'mjs') ext = 'js'
 
         let contents = fs.readFileSync(id, 'utf-8')
+        // 通过 esbuild.jsxInject 来自动为每一个被 ESbuild 转换的文件注入 JSX helper
         if (ext.endsWith('x') && config.esbuild && config.esbuild.jsxInject) {
           contents = config.esbuild.jsxInject + `\n` + contents
         }
