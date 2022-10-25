@@ -40,7 +40,7 @@ const externalTypes = [
   'tsx',
   ...KNOWN_ASSET_TYPES
 ]
-
+/**创建预构建插件 */
 export function esbuildDepPlugin(
   qualified: Record<string, string>,
   exportsData: Record<string, ExportsData>,
@@ -56,9 +56,11 @@ export function esbuildDepPlugin(
     : externalTypes
 
   // default resolver which prefers ESM
+  /**默认 esm 默认解析器 */
   const _resolve = config.createResolver({ asSrc: false, scan: true })
 
   // cjs resolver that prefers Node
+  /**node 的 cjs 解析器 */
   const _resolveRequire = config.createResolver({
     asSrc: false,
     isRequire: true,
@@ -80,6 +82,9 @@ export function esbuildDepPlugin(
       // map importer ids to file paths for correct resolution
       _importer = importer in qualified ? qualified[importer] : importer
     }
+    // kind 是 esbuild resolve 回调中的一个参数，表示模块类型，总共有 7 种类型
+    // https://esbuild.github.io/plugins/#on-resolve-arguments
+    // 以require开头的表示cjs、否则用esm的解析器
     const resolver = kind.startsWith('require') ? _resolveRequire : _resolve
     return resolver(id, _importer, undefined, ssr)
   }
@@ -209,8 +214,9 @@ export function esbuildDepPlugin(
       const root = path.resolve(config.root)
       build.onLoad({ filter: /.*/, namespace: 'dep' }, ({ path: id }) => {
         const entryFile = qualified[id]
-
+        /**相对根目录的路径 */
         let relativePath = normalizePath(path.relative(root, entryFile))
+        // 自动加上路径前缀
         if (
           !relativePath.startsWith('./') &&
           !relativePath.startsWith('../') &&

@@ -520,8 +520,11 @@ export async function runOptimizeDeps(
   // 1. flatten all ids to eliminate slash
   // 2. in the plugin, read the entry ourselves as virtual files to retain the
   //    path.
+  /**拍平之后的 id 跟具体依赖路径的映射 */
   const flatIdDeps: Record<string, string> = {}
+  /**依赖 id 的 imports、 exports 信息 */
   const idToExports: Record<string, ExportsData> = {}
+  /**拍平 id 的 imports、exports 信息 */
   const flatIdToExports: Record<string, ExportsData> = {}
 
   const optimizeDeps = getDepOptimizationConfig(config, ssr)
@@ -552,6 +555,7 @@ export async function runOptimizeDeps(
   // time we replace it by __vite_process_env_NODE_ENV. This placeholder will be
   // later replaced by the define plugin
   const define = {
+    // 组合环境变量
     'process.env.NODE_ENV': isBuild
       ? '__vite_process_env_NODE_ENV'
       : JSON.stringify(process.env.NODE_ENV || config.mode)
@@ -591,16 +595,19 @@ export async function runOptimizeDeps(
   )
 
   const start = performance.now()
-
+  // 执行预编译
   const result = await build({
+    // 绝对路径的工作目录（项目根目录）
     absWorkingDir: process.cwd(),
     entryPoints: Object.keys(flatIdDeps),
+    // 集合，将全部文件构建后内联到入口文件
     bundle: true,
     // We can't use platform 'neutral', as esbuild has custom handling
     // when the platform is 'node' or 'browser' that can't be emulated
     // by using mainFields and conditions
     platform,
     define,
+    // 输出文件格式，支持 iife、cjs、esm
     format: 'esm',
     // See https://github.com/evanw/esbuild/issues/1921#issuecomment-1152991694
     banner:
@@ -609,13 +616,20 @@ export async function runOptimizeDeps(
             js: `import { createRequire } from 'module';const require = createRequire(import.meta.url);`
           }
         : undefined,
+    // 打包后的支持的环境目标
     target: isBuild ? config.build.target || undefined : ESBUILD_MODULES_TARGET,
+    // 排除某些依赖的打包
     external,
+    // 日志级别，只显示错误信息
     logLevel: 'error',
+    // 代码拆分
     splitting: true,
     sourcemap: true,
+    // 构建输出目录，默认是 node_modules/.vite
     outdir: processingCacheDir,
+    // 忽略副作用注释
     ignoreAnnotations: !isBuild,
+    // 输出构建文件
     metafile: true,
     plugins,
     ...esbuildOptions,
@@ -625,10 +639,11 @@ export async function runOptimizeDeps(
       ...esbuildOptions.supported
     }
   })
-
+  // 执行构建传入了 metafile: true，这里能够拿到构建信息
   const meta = result.metafile!
 
   // the paths in `meta.outputs` are relative to `process.cwd()`
+  // 缓存目录
   const processingCacheDirOutputPath = path.relative(
     process.cwd(),
     processingCacheDir
@@ -675,6 +690,7 @@ export async function runOptimizeDeps(
   }
 
   const dataPath = path.join(processingCacheDir, '_metadata.json')
+  // 预编译结果写入metadata文件
   writeFile(dataPath, stringifyDepsOptimizerMetadata(metadata, depsCacheDir))
 
   debug(`deps bundled in ${(performance.now() - start).toFixed(2)}ms`)
